@@ -1,4 +1,5 @@
 import { motion } from 'motion/react';
+import { GameMode } from './ModeSelection';
 
 interface RhythmBlock {
   id: string;
@@ -11,6 +12,7 @@ interface RhythmBlocksProps {
   blocks: RhythmBlock[];
   currentTime: number;
   enabled: boolean;
+  mode: GameMode;
 }
 
 const buttonColors = [
@@ -18,22 +20,30 @@ const buttonColors = [
   '#8b5cf6', '#ec4899', '#06b6d4', '#f97316',
 ];
 
-export function RhythmBlocks({ blocks, currentTime, enabled }: RhythmBlocksProps) {
-  if (!enabled) return null;
+export function RhythmBlocks({ blocks, currentTime, enabled, mode }: RhythmBlocksProps) {
+  if (!enabled || mode === 'freeplay') return null;
   
-  // Calculate positions for lanes
-  const lanePositions = [
-    // Left 4 buttons (centered in left group)
-    'calc(50% - 200px)',
-    'calc(50% - 136px)',
-    'calc(50% - 72px)',
-    'calc(50% - 8px)',
-    // Right 4 buttons (centered in right group)
-    'calc(50% + 8px)',
-    'calc(50% + 72px)',
-    'calc(50% + 136px)',
-    'calc(50% + 200px)',
-  ];
+  // Calculate positions for lanes based on mode
+  const lanePositions = mode === 'pneno'
+    ? [
+        // Pneno mode: only 4 buttons centered
+        null, null, null, null, // Left buttons don't exist in Pneno
+        'calc(50% - 104px)',
+        'calc(50% - 40px)',
+        'calc(50% + 24px)',
+        'calc(50% + 88px)',
+      ]
+    : [
+        // TapArr/PiCo modes: all 8 buttons
+        'calc(50% - 200px)',
+        'calc(50% - 136px)',
+        'calc(50% - 72px)',
+        'calc(50% - 8px)',
+        'calc(50% + 8px)',
+        'calc(50% + 72px)',
+        'calc(50% + 136px)',
+        'calc(50% + 200px)',
+      ];
   
   const fallDuration = 2; // seconds to fall from top to bottom
   const targetY = 'calc(100vh - 120px)'; // Just above the buttons
@@ -47,13 +57,17 @@ export function RhythmBlocks({ blocks, currentTime, enabled }: RhythmBlocksProps
         // Only show blocks that are falling or just hit
         if (progress < -0.1 || progress > 1.1) return null;
         
+        // Skip if the lane position is null (Pneno mode with left buttons)
+        const leftPosition = lanePositions[block.lane];
+        if (leftPosition === null) return null;
+        
         return (
           <motion.div
             key={block.id}
             className="absolute w-14 h-14 rounded-lg shadow-lg"
             style={{
               backgroundColor: block.color,
-              left: lanePositions[block.lane],
+              left: leftPosition,
               opacity: progress > 1 ? 0.3 : 0.7,
             }}
             initial={{ top: '0px' }}
