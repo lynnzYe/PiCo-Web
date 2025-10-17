@@ -11,13 +11,13 @@ interface GameButtonsProps {
 const buttonKeys = ['a', 's', 'd', 'f', 'h', 'j', 'k', 'l'];
 const buttonColors = [
   '#ef4444', // red
+  '#f97316', // orange
   '#f59e0b', // amber
   '#10b981', // emerald
+  '#06b6d4', // cyan
   '#3b82f6', // blue
   '#8b5cf6', // violet
   '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#f97316', // orange
 ];
 
 export function GameButtons({ onButtonPress, onButtonRelease, activeButtons, mode }: GameButtonsProps) {
@@ -87,8 +87,11 @@ export function GameButtons({ onButtonPress, onButtonRelease, activeButtons, mod
   }
   
   // TapArr and PiCo modes: show all 8 buttons
+  // Use larger gap for TapArr mode to clearly separate left/right hands
+  const groupGap = mode === 'tapArr' ? 'gap-16' : 'gap-4';
+  
   return (
-    <div className="flex gap-4 justify-center items-end pb-4">
+    <div className={`flex ${groupGap} justify-center items-end pb-4`}>
       {/* Left 4 buttons */}
       <div className="flex gap-2">
         {[0, 1, 2, 3].map(i => (

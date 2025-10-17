@@ -5,11 +5,9 @@ import { Label } from './ui/label';
 interface SettingsProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  rhythmHintsEnabled: boolean;
-  onRhythmHintsChange: (enabled: boolean) => void;
 }
 
-export function Settings({ open, onOpenChange, rhythmHintsEnabled, onRhythmHintsChange }: SettingsProps) {
+export function Settings({ open, onOpenChange }: SettingsProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -17,14 +15,6 @@ export function Settings({ open, onOpenChange, rhythmHintsEnabled, onRhythmHints
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
         <div className="space-y-6 py-4">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="rhythm-hints">Rhythm Hints</Label>
-            <Switch
-              id="rhythm-hints"
-              checked={rhythmHintsEnabled}
-              onCheckedChange={onRhythmHintsChange}
-            />
-          </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="sound">Sound Effects</Label>
             <Switch id="sound" defaultChecked />
