@@ -3,11 +3,10 @@ import { GameMode } from "./ModeSelection";
 
 interface RhythmBlock {
   id: string;
-  lane: number; // 0-7 for the 8 buttons
-  sequenceIndex: number;
+  lane: number;
+  spawnTime: number; // Scheduled time when block should appear
   color: string;
-  state: "waiting" | "falling" | "stopped" | "pressed";
-  fallStartTime?: number;
+  state: "active" | "pressed";
 }
 
 interface RhythmBlocksProps {
@@ -15,6 +14,9 @@ interface RhythmBlocksProps {
   currentTime: number;
   enabled: boolean;
   mode: GameMode;
+  sequenceStartTime: number | null;
+  streamPaused: boolean;
+  pausedAtTime: number | null;
 }
 
 export function RhythmBlocks({
@@ -22,8 +24,12 @@ export function RhythmBlocks({
   currentTime,
   enabled,
   mode,
+  sequenceStartTime,
+  streamPaused,
+  pausedAtTime,
 }: RhythmBlocksProps) {
-  if (!enabled || mode === "freeplay") return null;
+  if (!enabled || mode === "freeplay" || sequenceStartTime === null)
+    return null;
 
   // Button dimensions
   const buttonWidth = 64; // 16 * 4 (w-16)
@@ -67,61 +73,61 @@ export function RhythmBlocks({
   const buttonAreaHeight = 64 + 16 + 24; // button height + pb-4 + py-6
   const targetY = window.innerHeight - buttonAreaHeight;
   const overshootDistance = 20; // pixels beyond the button before stopping
-  const fallDuration = 2; // seconds to fall from top to target
-  const FALL_DURATION = 2.0; // seconds
-  const SCREEN_HEIGHT = window.innerHeight;
-  const TARGET_Y = SCREEN_HEIGHT - buttonAreaHeight;
+  const fallDuration = 2.0; // seconds to fall from top to target
 
   return (
     <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 10 }}>
       <AnimatePresence>
         {blocks.map((block) => {
-          // Only render blocks that are falling, stopped, or pressed (not waiting)
-          if (block.state === "waiting") return null;
+          // Use pausedAtTime if stream is paused, otherwise use currentTime
+          const effectiveTime =
+            streamPaused && pausedAtTime !== null ? pausedAtTime : currentTime;
+
+          // Calculate how long this block has been active (time since it should have spawned)
+          const blockAge = effectiveTime - sequenceStartTime - block.spawnTime;
+
+          // Don't render blocks that haven't spawned yet
+          if (blockAge < 0) return null;
 
           // Skip if the lane position is null (Pneno mode with left buttons)
           const leftPosition = getLanePosition(block.lane);
           if (leftPosition === null) return null;
 
-          // Determine animation based on block state
-          let animationProps: any = {};
+          // Calculate position based on time
+          // Position ranges from 0 (top) to targetY + overshootDistance (stopped at button)
+          const progress = Math.min(blockAge / fallDuration, 1);
+          const currentTop = progress * (targetY + overshootDistance);
 
+          // Handle pressed state - animate down and fade out from current position
           if (block.state === "pressed") {
-            // Block was pressed - continue falling and fade out
-            animationProps = {
-              animate: {
-                top: `${window.innerHeight + 100}px`,
-                opacity: 0,
-              },
-              exit: { opacity: 0 },
-              transition: {
-                duration: 0.5,
-                ease: "easeIn",
-              },
-            };
-          } else if (block.state === "stopped") {
-            // Block is stopped at the button, waiting for press
-            animationProps = {
-              animate: {
-                top: `${targetY + overshootDistance}px`,
-                opacity: 0.7,
-              },
-            };
-          } else if (block.state === "falling") {
-            // Block is falling - animate to the stopped position
-            animationProps = {
-              initial: { top: "0px", opacity: 0.7 },
-              animate: {
-                top: `${targetY + overshootDistance}px`,
-                opacity: 0.7,
-              },
-              transition: {
-                duration: fallDuration,
-                ease: "linear",
-              },
-            };
+            return (
+              <motion.div
+                key={block.id}
+                className="absolute rounded-lg shadow-lg"
+                style={{
+                  backgroundColor: block.color,
+                  left: leftPosition,
+                  width: `${buttonWidth}px`,
+                  height: `${buttonWidth}px`,
+                  top: `${currentTop}px`,
+                }}
+                initial={{
+                  opacity: 0.7,
+                }}
+                animate={{
+                  top: `${window.innerHeight + 100}px`,
+                  opacity: 0,
+                }}
+                exit={{ opacity: 0 }}
+                transition={{
+                  duration: 0.5,
+                  ease: "easeIn",
+                }}
+              />
+            );
           }
 
+          // Active block - normal position
           return (
             <motion.div
               key={block.id}
@@ -131,8 +137,10 @@ export function RhythmBlocks({
                 left: leftPosition,
                 width: `${buttonWidth}px`,
                 height: `${buttonWidth}px`,
+                top: `${currentTop}px`,
+                opacity: 0.7,
               }}
-              {...animationProps}
+              initial={false}
             />
           );
         })}
