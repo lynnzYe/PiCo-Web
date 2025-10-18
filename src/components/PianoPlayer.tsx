@@ -32,10 +32,9 @@ interface MidiEvent {
 interface RhythmBlock {
   id: string;
   lane: number;
-  sequenceIndex: number; // Position in the sequence
+  spawnTime: number; // Scheduled time when block should appear
   color: string;
-  state: "waiting" | "falling" | "stopped" | "pressed";
-  fallStartTime?: number;
+  state: "active" | "pressed";
 }
 
 interface PianoPlayerProps {
@@ -81,8 +80,11 @@ export function PianoPlayer({
   const [rhythmHintsEnabled, setRhythmHintsEnabled] = useState(false);
   const [rhythmBlocks, setRhythmBlocks] = useState<RhythmBlock[]>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
-  const [blockStartTime, setBlockStartTime] = useState<number | null>(null);
+  const [streamPaused, setStreamPaused] = useState(false);
+  const [pausedAtTime, setPausedAtTime] = useState<number | null>(null);
+  const [sequenceStartTime, setSequenceStartTime] = useState<number | null>(
+    null
+  );
 
   // Update current time for animation
   useEffect(() => {
@@ -116,112 +118,130 @@ export function PianoPlayer({
       mode !== "freeplay"
     ) {
       const blocks: RhythmBlock[] = [];
-      const bpm = 60;
-      const secondsPerBeat = 60 / bpm; // 1 second per beat
-      const noteInterval = secondsPerBeat / 2; // eighth notes = 0.5s
 
-      const totalNotes = 30;
-      const fallDuration = 2; // seconds to fall from top to bottom
-
+      // For Pneno mode, only use lanes 4-7 (right 4 buttons)
       const minLane = mode === "pneno" ? 4 : 0;
       const maxLane = 8;
       const laneCount = maxLane - minLane;
 
-      for (let i = 0; i < totalNotes; i++) {
-        const onsetTime = i * noteInterval;
+      // Create a sequence of blocks with scheduled spawn times (0.5s interval)
+      for (let i = 0; i < 30; i++) {
         const lane = minLane + Math.floor(Math.random() * laneCount);
-
         blocks.push({
           id: `block-${i}`,
           lane,
-          sequenceIndex: i,
+          spawnTime: i * 0.5, // Spawn every 0.5 seconds
           color: buttonColors[lane],
-          state: "waiting",
-          fallStartTime: onsetTime - fallDuration, // start falling earlier so it reaches bottom at onset
+          state: "active",
         });
       }
 
       setRhythmBlocks(blocks);
-      setCurrentBlockIndex(0);
-      setBlockStartTime(currentTime);
+      setSequenceStartTime(currentTime);
+      setStreamPaused(false);
+      setPausedAtTime(null);
     }
   }, [rhythmHintsEnabled, mode, rhythmBlocks.length]);
 
-  // Manage block sequence - start next block after interval and handle stopping
+  // Check if stream should pause (when any ACTIVE block reaches the button position)
   useEffect(() => {
-    if (!rhythmHintsEnabled || rhythmBlocks.length === 0) return;
+    if (
+      !rhythmHintsEnabled ||
+      rhythmBlocks.length === 0 ||
+      sequenceStartTime === null
+    )
+      return;
 
-    const currentBlock = rhythmBlocks[currentBlockIndex];
-    if (!currentBlock) return;
+    // Don't check if already paused
+    if (streamPaused) return;
 
-    // If current block is waiting, start it falling after 0.5s from previous block
-    if (currentBlock.state === "waiting" && blockStartTime !== null) {
-      const timeSinceLastBlock = currentTime - blockStartTime;
+    const fallDuration = 2.0; // seconds to fall from top to button
 
-      if (timeSinceLastBlock >= 0.5) {
-        setRhythmBlocks((prev) =>
-          prev.map((block) =>
-            block.sequenceIndex === currentBlockIndex
-              ? { ...block, state: "falling", fallStartTime: currentTime }
-              : block
-          )
-        );
-      }
-    }
+    // Check each active block to see if it has reached the button
+    for (const block of rhythmBlocks) {
+      // Only pause if the block is still active (not pressed)
+      if (block.state !== "active") continue;
 
-    // If current block has been falling for 2 seconds, stop it
-    if (currentBlock.state === "falling") {
-      const blockData = rhythmBlocks.find(
-        (b) => b.sequenceIndex === currentBlockIndex
-      );
-      if (blockData && blockData.fallStartTime) {
-        const fallTime = currentTime - blockData.fallStartTime;
-        if (fallTime >= 2.0) {
-          setRhythmBlocks((prev) =>
-            prev.map((block) =>
-              block.sequenceIndex === currentBlockIndex
-                ? { ...block, state: "stopped" }
-                : block
-            )
-          );
-        }
+      const blockAge = currentTime - sequenceStartTime - block.spawnTime;
+
+      // Block has spawned and reached the button position
+      if (blockAge >= fallDuration) {
+        // Pause the stream
+        setStreamPaused(true);
+        setPausedAtTime(currentTime);
+        break;
       }
     }
   }, [
     rhythmHintsEnabled,
     rhythmBlocks,
-    currentBlockIndex,
     currentTime,
-    blockStartTime,
+    sequenceStartTime,
+    streamPaused,
   ]);
 
   const handleButtonPress = useCallback(
     (buttonIndex: number) => {
       setActiveButtons((prev) => new Set(prev).add(buttonIndex));
 
-      // Check if this button press matches the current rhythm block
-      if (rhythmHintsEnabled && rhythmBlocks.length > 0) {
-        const currentBlock = rhythmBlocks[currentBlockIndex];
+      // Check if this button press matches any rhythm block
+      if (
+        rhythmHintsEnabled &&
+        rhythmBlocks.length > 0 &&
+        sequenceStartTime !== null
+      ) {
+        const fallDuration = 2.0;
+        const effectiveTime =
+          streamPaused && pausedAtTime !== null ? pausedAtTime : currentTime;
 
-        if (
-          currentBlock &&
-          currentBlock.lane === buttonIndex &&
-          (currentBlock.state === "falling" || currentBlock.state === "stopped")
-        ) {
-          // Correct button pressed! Mark as pressed and move to next block
+        // Find all active blocks that have spawned
+        const activeSpawnedBlocks = rhythmBlocks.filter((block) => {
+          if (block.state !== "active") return false;
+          const blockAge = effectiveTime - sequenceStartTime - block.spawnTime;
+          return blockAge >= 0; // Block has spawned
+        });
+
+        // Guard: Only allow pressing blocks with the latest (min) spawn time
+        if (activeSpawnedBlocks.length === 0) return;
+
+        const latestSpawnTime = Math.min(
+          ...activeSpawnedBlocks.map((b) => b.spawnTime)
+        );
+        const latestBlocks = activeSpawnedBlocks.filter(
+          (b) => b.spawnTime === latestSpawnTime
+        );
+
+        // Find matching block in the latest set
+        const matchingBlock = latestBlocks.find(
+          (block) => block.lane === buttonIndex
+        );
+
+        if (matchingBlock) {
+          // Mark the block as pressed (it will animate out)
           setRhythmBlocks((prev) =>
             prev.map((block) =>
-              block.sequenceIndex === currentBlockIndex
+              block.id === matchingBlock.id
                 ? { ...block, state: "pressed" }
                 : block
             )
           );
 
-          // Move to next block after a short delay
+          // If the stream was paused, resume it
+          if (streamPaused && pausedAtTime !== null) {
+            const pauseDuration = currentTime - pausedAtTime;
+            setSequenceStartTime((prev) =>
+              prev !== null ? prev + pauseDuration : null
+            );
+            setStreamPaused(false);
+            setPausedAtTime(null);
+          }
+
+          // Remove the pressed block after animation completes
           setTimeout(() => {
-            setCurrentBlockIndex((prev) => prev + 1);
-            setBlockStartTime(currentTime);
-          }, 100);
+            setRhythmBlocks((prev) =>
+              prev.filter((block) => block.id !== matchingBlock.id)
+            );
+          }, 500); // Match the animation duration
         }
       }
 
@@ -254,7 +274,15 @@ export function PianoPlayer({
         });
       }
     },
-    [currentTime, mode, rhythmHintsEnabled, rhythmBlocks, currentBlockIndex]
+    [
+      currentTime,
+      mode,
+      rhythmHintsEnabled,
+      rhythmBlocks,
+      streamPaused,
+      sequenceStartTime,
+      pausedAtTime,
+    ]
   );
 
   const handleButtonRelease = useCallback(
@@ -389,6 +417,9 @@ export function PianoPlayer({
           currentTime={currentTime}
           enabled={rhythmHintsEnabled}
           mode={mode}
+          sequenceStartTime={sequenceStartTime}
+          streamPaused={streamPaused}
+          pausedAtTime={pausedAtTime}
         />
       </div>
 

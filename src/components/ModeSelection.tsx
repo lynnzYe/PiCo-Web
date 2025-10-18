@@ -1,8 +1,8 @@
-import { ArrowLeft } from 'lucide-react';
-import { Button } from './ui/button';
-import { Card } from './ui/card';
+import { ArrowLeft } from "lucide-react";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
 
-export type GameMode = 'pneno' | 'tapArr' | 'piCo' | 'freeplay';
+export type GameMode = "pneno" | "tapArr" | "piCo" | "freeplay";
 
 interface ModeInfo {
   id: GameMode;
@@ -20,27 +20,27 @@ interface ModeSelectionProps {
 
 const modeInfoMap: Record<GameMode, ModeInfo> = {
   pneno: {
-    id: 'pneno',
-    name: 'Pneno',
-    description: 'Four-button mode with simplified controls',
+    id: "pneno",
+    name: "Pneno",
+    description: "Four-button mode with simplified controls",
     buttonCount: 4,
   },
   tapArr: {
-    id: 'tapArr',
-    name: 'TapArr',
-    description: 'Eight-button mode with MIDI-aware arrangement',
+    id: "tapArr",
+    name: "TapArr",
+    description: "Eight-button mode with MIDI-aware arrangement",
     buttonCount: 8,
   },
   piCo: {
-    id: 'piCo',
-    name: 'PiCo',
-    description: 'Eight-button mode with intelligent composition',
+    id: "piCo",
+    name: "PiCo",
+    description: "Eight-button mode with intelligent composition",
     buttonCount: 8,
   },
   freeplay: {
-    id: 'freeplay',
-    name: 'Freeplay',
-    description: 'No buttons - just play freely on the piano',
+    id: "freeplay",
+    name: "Freeplay",
+    description: "No buttons - just play freely on the piano",
     buttonCount: 0,
   },
 };
@@ -51,17 +51,13 @@ export function ModeSelection({
   onSelectMode,
   onBack,
 }: ModeSelectionProps) {
-  const allModes: GameMode[] = ['pneno', 'tapArr', 'piCo'];
+  const allModes: GameMode[] = ["pneno", "tapArr", "piCo"];
 
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
-          <Button
-            variant="ghost"
-            onClick={onBack}
-            className="mb-4"
-          >
+          <Button variant="ghost" onClick={onBack} className="mb-4">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Songs
           </Button>
@@ -79,8 +75,8 @@ export function ModeSelection({
                 key={mode}
                 className={`p-6 transition-all ${
                   isAvailable
-                    ? 'cursor-pointer hover:bg-accent hover:shadow-lg'
-                    : 'opacity-40 cursor-not-allowed'
+                    ? "cursor-pointer hover:bg-accent hover:shadow-lg"
+                    : "opacity-40 cursor-not-allowed"
                 }`}
                 onClick={() => isAvailable && onSelectMode(mode)}
               >
@@ -100,12 +96,14 @@ export function ModeSelection({
                     <div className="flex items-center gap-4 text-sm">
                       <span className="text-muted-foreground">
                         {modeInfo.buttonCount === 0
-                          ? 'No buttons'
+                          ? "No buttons"
                           : `${modeInfo.buttonCount} buttons`}
                       </span>
                       {modeInfo.buttonCount > 0 && (
                         <span className="text-muted-foreground">
-                          {modeInfo.buttonCount === 4 ? 'H J K L keys' : 'A S D F + H J K L keys'}
+                          {modeInfo.buttonCount === 4
+                            ? "H J K L keys"
+                            : "A S D F + H J K L keys"}
                         </span>
                       )}
                     </div>
